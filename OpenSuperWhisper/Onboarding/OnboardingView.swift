@@ -163,7 +163,16 @@ class OnboardingViewModel: ObservableObject {
                     }
                     throw CancellationError()
                 }
-                
+
+                // Best-effort CoreML encoder for Neural Engine acceleration.
+                // ANE is a bonus; CPU fallback always works.
+                if let zipName = CoreMLModel.upstreamEncoderZipName(forModelFilename: filename),
+                   let encoderURL = URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/\(zipName)?download=true") {
+                    try? await modelManager.downloadCoreMLEncoder(
+                        zipURL: encoderURL,
+                        forModelFilename: filename) { _ in }
+                }
+
                 await MainActor.run {
                     if let index = unifiedModels.firstIndex(where: { $0.id == model.id }) {
                         unifiedModels[index].isDownloaded = true
