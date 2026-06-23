@@ -5,6 +5,15 @@ import Foundation
 enum CoreMLModel {
     private static let quantSuffixes = ["-q5_0", "-q8_0", "-q4_0", "-q5_1", "-q4_1", "-q8_1"]
 
+    /// Model families that ship a CoreML encoder on HuggingFace
+    /// (ggerganov/whisper.cpp). Used to honor the "nil for unsupported" contract
+    /// so callers don't attempt downloads that would 404.
+    private static let knownEncoderBases: Set<String> = [
+        "ggml-tiny", "ggml-tiny.en", "ggml-base", "ggml-base.en",
+        "ggml-small", "ggml-small.en", "ggml-medium", "ggml-medium.en",
+        "ggml-large-v1", "ggml-large-v2", "ggml-large-v3", "ggml-large-v3-turbo",
+    ]
+
     /// whisper.cpp expects the encoder bundle as the model path with `.bin`
     /// replaced by `-encoder.mlmodelc` (see `whisper_get_coreml_path_encoder`
     /// in whisper.cpp/src/whisper.cpp).
@@ -23,6 +32,7 @@ enum CoreMLModel {
             base = String(base.dropLast(suffix.count))
             break
         }
+        guard knownEncoderBases.contains(base) else { return nil }
         return base + "-encoder.mlmodelc.zip"
     }
 }

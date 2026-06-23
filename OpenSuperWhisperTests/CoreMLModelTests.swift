@@ -22,4 +22,13 @@ final class CoreMLModelTests: XCTestCase {
             CoreMLModel.upstreamEncoderZipName(forModelFilename: "ggml-large-v3-turbo.bin"),
             "ggml-large-v3-turbo-encoder.mlmodelc.zip")
     }
+
+    func testUpstreamZipReturnsNilWhenUnsupported() {
+        // Not a .bin
+        XCTAssertNil(CoreMLModel.upstreamEncoderZipName(forModelFilename: "notes.txt"))
+        // A .bin with no known upstream encoder family
+        XCTAssertNil(CoreMLModel.upstreamEncoderZipName(forModelFilename: "custom-model.bin"))
+        // The Hebrew ivrit model has no upstream CoreML encoder
+        XCTAssertNil(CoreMLModel.upstreamEncoderZipName(forModelFilename: "ggml-ivrit-large-v3-turbo.bin"))
+    }
 }

@@ -242,9 +242,17 @@ class WhisperModelManager {
 
         try unzipItem(at: zipURLOnDisk, to: tmpDir)
 
-        guard let inner = try FileManager.default
-            .contentsOfDirectory(at: tmpDir, includingPropertiesForKeys: nil)
-            .first(where: { $0.pathExtension == "mlmodelc" }) else {
+        // Find the .mlmodelc bundle anywhere under tmpDir — some archives wrap it
+        // in a nested folder. The enumerator yields the bundle directory before
+        // its contents, so the first match is the bundle itself.
+        var inner: URL?
+        if let enumerator = FileManager.default.enumerator(at: tmpDir, includingPropertiesForKeys: nil) {
+            for case let url as URL in enumerator where url.pathExtension == "mlmodelc" {
+                inner = url
+                break
+            }
+        }
+        guard let inner else {
             throw NSError(domain: "WhisperModelManager", code: -2,
                           userInfo: [NSLocalizedDescriptionKey: "No .mlmodelc found in encoder archive"])
         }
