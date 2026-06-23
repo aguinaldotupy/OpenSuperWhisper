@@ -51,6 +51,11 @@ Or download the latest **notarized** `.dmg` from the [Releases page](https://git
 - **Apple Silicon or Intel** — `brew install` picks the right build automatically. The Intel
   (x86_64) build ships Whisper + Parakeet; SenseVoice is Apple-Silicon-only (its onnxruntime
   dependency ships arm64-only).
+- **Apple Neural Engine acceleration (Whisper)** — on Apple Silicon, the Whisper encoder runs on
+  the Neural Engine via CoreML, typically 2-3× faster. The matching CoreML encoder is downloaded
+  automatically alongside each Whisper model; the **first transcription after install compiles it**
+  (one-time, a few seconds). If the encoder is missing or incompatible, transcription falls back to
+  the CPU path automatically. Intel Macs always use the CPU path.
 
 ## Support
 
