@@ -830,6 +830,7 @@
 					"$(PROJECT_DIR)/build",
 					"$(PROJECT_DIR)/vendor/sherpa-onnx.xcframework/macos-arm64_x86_64",
 					/opt/homebrew/opt/libomp/lib,
+					"$(PROJECT_DIR)/libwhisper/build/whisper.cpp/src/$(CONFIGURATION)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.5.0;
@@ -837,6 +838,11 @@
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lomp",
+					"-lwhisper.coreml",
+					"-framework",
+					"CoreML",
+					"-framework",
+					"Foundation",
 				);
 				"OTHER_LDFLAGS[arch=arm64]" = (
 					"$(inherited)",
@@ -897,6 +903,7 @@
 					"$(PROJECT_DIR)/build",
 					"$(PROJECT_DIR)/vendor/sherpa-onnx.xcframework/macos-arm64_x86_64",
 					/opt/homebrew/opt/libomp/lib,
+					"$(PROJECT_DIR)/libwhisper/build/whisper.cpp/src/$(CONFIGURATION)",
 				);
 				LLVM_LTO = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
@@ -905,6 +912,11 @@
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lomp",
+					"-lwhisper.coreml",
+					"-framework",
+					"CoreML",
+					"-framework",
+					"Foundation",
 				);
 				"OTHER_LDFLAGS[arch=arm64]" = (
 					"$(inherited)",

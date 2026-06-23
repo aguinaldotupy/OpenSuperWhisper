@@ -487,7 +487,16 @@ class SettingsViewModel: ObservableObject {
                     }
                     return
                 }
-                
+
+                // Best-effort: fetch the CoreML encoder for Neural Engine
+                // acceleration. ANE is a bonus; CPU fallback always works, so a
+                // failure here must not fail the model download.
+                if let encoderURL = model.coreMLEncoderURL {
+                    try? await WhisperModelManager.shared.downloadCoreMLEncoder(
+                        zipURL: encoderURL,
+                        forModelFilename: filename) { _ in }
+                }
+
                 await MainActor.run {
                     if let index = downloadableModels.firstIndex(where: { $0.name == model.name }) {
                         downloadableModels[index].isDownloaded = true
@@ -683,6 +692,9 @@ struct SettingsDownloadableModel: Identifiable {
     let filename: String
     /// Language to switch to when this model is selected (e.g. "he" for the Hebrew model).
     let preferredLanguage: String?
+    /// Upstream CoreML encoder archive for this model, if one exists. Downloaded
+    /// after the .bin to enable Apple Neural Engine acceleration.
+    let coreMLEncoderURL: URL?
 
     var sizeString: String {
         let formatter = ByteCountFormatter()
@@ -694,7 +706,7 @@ struct SettingsDownloadableModel: Identifiable {
     }
 
     init(name: String, isDownloaded: Bool, url: URL, size: Int, description: String,
-         filename: String? = nil, preferredLanguage: String? = nil) {
+         filename: String? = nil, preferredLanguage: String? = nil, coreMLEncoderURL: URL? = nil) {
         self.name = name
         self.isDownloaded = isDownloaded
         self.url = url
@@ -702,6 +714,7 @@ struct SettingsDownloadableModel: Identifiable {
         self.description = description
         self.filename = filename ?? url.lastPathComponent
         self.preferredLanguage = preferredLanguage
+        self.coreMLEncoderURL = coreMLEncoderURL
     }
 }
 
@@ -712,21 +725,24 @@ struct SettingsDownloadableModels {
             isDownloaded: false,
             url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin?download=true")!,
             size: 1624,
-            description: "High accuracy, best quality"
+            description: "High accuracy, best quality",
+            coreMLEncoderURL: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-encoder.mlmodelc.zip?download=true")
         ),
         SettingsDownloadableModel(
             name: "Turbo V3 medium",
             isDownloaded: false,
             url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q8_0.bin?download=true")!,
             size: 874,
-            description: "Balanced speed and accuracy"
+            description: "Balanced speed and accuracy",
+            coreMLEncoderURL: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-encoder.mlmodelc.zip?download=true")
         ),
         SettingsDownloadableModel(
             name: "Turbo V3 small",
             isDownloaded: false,
             url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin?download=true")!,
             size: 574,
-            description: "Fastest processing"
+            description: "Fastest processing",
+            coreMLEncoderURL: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-encoder.mlmodelc.zip?download=true")
         ),
         SettingsDownloadableModel(
             name: "Hebrew — ivrit.ai Turbo v3",
@@ -2410,6 +2426,16 @@ struct ModelDownloadItemView: View {
                 }
                 .font(.caption)
                 .foregroundColor(.secondary)
+
+                if model.isDownloaded, WhisperModelManager.shared.isCoreMLEncoderPresent(forModelFilename: model.filename) {
+                    Label("Neural Engine ready", systemImage: "bolt.fill")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                } else if model.isDownloaded, model.coreMLEncoderURL != nil {
+                    Text("First transcription compiles the Neural Engine model (one-time, a few seconds).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 if model.downloadProgress > 0 && model.downloadProgress < 1 {
                     ProgressView(value: model.downloadProgress)

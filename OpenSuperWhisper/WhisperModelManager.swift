@@ -204,4 +204,75 @@ class WhisperModelManager {
         let modelPath = modelsDirectory.appendingPathComponent(name).path
         return FileManager.default.fileExists(atPath: modelPath)
     }
+
+    // MARK: - CoreML encoder (Apple Neural Engine acceleration)
+
+    /// Whether the CoreML encoder bundle for a given model `.bin` is installed
+    /// next to it (the path whisper.cpp auto-loads to run the encoder on the ANE).
+    func isCoreMLEncoderPresent(forModelFilename filename: String) -> Bool {
+        let name = CoreMLModel.encoderBundleName(forModelFilename: filename)
+        return FileManager.default.fileExists(atPath: modelsDirectory.appendingPathComponent(name).path)
+    }
+
+    /// Downloads and installs the CoreML encoder bundle next to its `.bin`, named
+    /// exactly as whisper.cpp expects. Idempotent; failures here are non-fatal to
+    /// transcription (CPU fallback still works) — callers should not treat a thrown
+    /// error as a model-download failure.
+    func downloadCoreMLEncoder(zipURL: URL,
+                               forModelFilename filename: String,
+                               progressCallback: @escaping (Double) -> Void) async throws {
+        let targetName = CoreMLModel.encoderBundleName(forModelFilename: filename)
+        let targetURL = modelsDirectory.appendingPathComponent(targetName)
+        if FileManager.default.fileExists(atPath: targetURL.path) {
+            await MainActor.run { progressCallback(1.0) }
+            return
+        }
+
+        // Reuse the existing download machinery to fetch the zip into modelsDirectory.
+        let zipName = targetName + ".download.zip"
+        try await downloadModel(url: zipURL, name: zipName, progressCallback: progressCallback)
+        let zipURLOnDisk = modelsDirectory.appendingPathComponent(zipName)
+        defer { try? FileManager.default.removeItem(at: zipURLOnDisk) }
+
+        // Unzip into a temp dir, then move the inner .mlmodelc to the target path.
+        let tmpDir = modelsDirectory.appendingPathComponent(targetName + ".unzip-tmp")
+        try? FileManager.default.removeItem(at: tmpDir)
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        try unzipItem(at: zipURLOnDisk, to: tmpDir)
+
+        // Find the .mlmodelc bundle anywhere under tmpDir — some archives wrap it
+        // in a nested folder. The enumerator yields the bundle directory before
+        // its contents, so the first match is the bundle itself.
+        var inner: URL?
+        if let enumerator = FileManager.default.enumerator(at: tmpDir, includingPropertiesForKeys: nil) {
+            for case let url as URL in enumerator where url.pathExtension == "mlmodelc" {
+                inner = url
+                break
+            }
+        }
+        guard let inner else {
+            throw NSError(domain: "WhisperModelManager", code: -2,
+                          userInfo: [NSLocalizedDescriptionKey: "No .mlmodelc found in encoder archive"])
+        }
+        if FileManager.default.fileExists(atPath: targetURL.path) {
+            try FileManager.default.removeItem(at: targetURL)
+        }
+        try FileManager.default.moveItem(at: inner, to: targetURL)
+        await MainActor.run { progressCallback(1.0) }
+    }
+
+    /// Unzips using the system `ditto` tool (handles `.mlmodelc` bundles reliably).
+    private func unzipItem(at zip: URL, to destination: URL) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        process.arguments = ["-x", "-k", zip.path, destination.path]
+        try process.run()
+        process.waitUntilExit()
+        if process.terminationStatus != 0 {
+            throw NSError(domain: "WhisperModelManager", code: -3,
+                          userInfo: [NSLocalizedDescriptionKey: "Failed to unzip encoder archive"])
+        }
+    }
 }

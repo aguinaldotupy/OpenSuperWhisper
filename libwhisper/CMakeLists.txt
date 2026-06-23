@@ -16,4 +16,10 @@ option(BUILD_SHARED_LIBS "build shared libraries" OFF)
 add_compile_definitions(GGML_MATMUL_INT8=0)
 add_compile_options(-U__ARM_FEATURE_MATMUL_INT8)
 
+# Run the Whisper encoder on the Apple Neural Engine via CoreML.
+# ALLOW_FALLBACK keeps CPU as a safety net when no -encoder.mlmodelc is present
+# or the device/model is incompatible.
+set(WHISPER_COREML ON CACHE BOOL "" FORCE)
+set(WHISPER_COREML_ALLOW_FALLBACK ON CACHE BOOL "" FORCE)
+
 add_subdirectory(whisper.cpp)
